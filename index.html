@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameSocial</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #000; color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .login-box { background: #fff; color: #000; padding: 40px; border-radius: 10px; width: 400px; text-align: center; }
+        input { width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #000; border-radius: 5px; }
+        button { width: 100%; padding: 15px; background: #000; color: #fff; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; }
+        button:hover { background: #333; }
+        .error { color: red; margin: 10px 0; }
+        .success { color: green; margin: 10px 0; }
+        .dashboard { display: none; background: #fff; color: #000; padding: 40px; border-radius: 10px; width: 90%; max-width: 1200px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 2px solid #000; }
+        .level-bar { background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .level-progress { width: 100%; height: 20px; background: #ddd; border-radius: 10px; overflow: hidden; margin-top: 10px; }
+        .level-fill { height: 100%; background: linear-gradient(90deg, #0f0, #ff0, #f00); width: 0%; transition: width 0.3s; }
+        .chat { background: #f5f5f5; padding: 20px; border-radius: 10px; margin: 20px 0; height: 300px; overflow-y: auto; }
+        .message { background: #fff; padding: 10px; margin: 5px 0; border-radius: 5px; border: 1px solid #ddd; }
+        .chat-input { display: flex; gap: 10px; margin-top: 10px; }
+        .chat-input input { flex: 1; }
+        .chat-input button { width: auto; padding: 10px 20px; }
+        .posts { margin-top: 20px; }
+        .post { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .post button { width: auto; padding: 5px 15px; }
+    </style>
+</head>
+<body>
+    <div id="loginBox" class="login-box">
+        <h2 id="formTitle">LOGIN</h2>
+        <div id="loginForm">
+            <input type="text" id="username" placeholder="Username">
+            <input type="password" id="password" placeholder="Password">
+            <button onclick="login()">LOGIN</button>
+        </div>
+        <div id="signupForm" style="display: none;">
+            <input type="text" id="signupName" placeholder="Full Name">
+            <input type="email" id="signupEmail" placeholder="Email">
+            <input type="text" id="signupUsername" placeholder="Username">
+            <input type="password" id="signupPassword" placeholder="Password (min 6 chars)">
+            <button onclick="signup()">SIGN UP</button>
+        </div>
+        <p style="margin-top: 20px; font-size: 14px;">
+            <span id="switchText">Don't have an account?</span>
+            <a href="#" onclick="switchMode(); return false;" style="color: #000; text-decoration: underline;">
+                <span id="switchLink">Sign up</span>
+            </a>
+        </p>
+        <div id="message"></div>
+    </div>
+
+    <div id="dashboard" class="dashboard">
+        <div class="header">
+            <h1>Welcome <span id="userName"></span>!</h1>
+            <button onclick="logout()" style="width: auto; padding: 10px 20px;">LOGOUT</button>
+        </div>
+        
+        <div class="level-bar">
+            <h3>Level <span id="userLevel">1</span> - <span id="expText">0/100 XP</span></h3>
+            <div class="level-progress">
+                <div class="level-fill" id="levelFill"></div>
+            </div>
+            <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                💬 Chat: +5 XP | 📝 Post: +10 XP | 👍 Like: +2 XP
+            </p>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+            <div>
+                <h3>Create Post</h3>
+                <input type="text" id="postContent" placeholder="What's on your mind?" style="margin-bottom: 10px;">
+                <button onclick="createPost()" style="width: auto; padding: 10px 20px;">Post</button>
+                
+                <div class="posts" id="postsContainer">
+                    <h3 style="margin-top: 20px;">Recent Posts</h3>
+                </div>
+            </div>
+            
+            <div>
+                <h3>Global Chat</h3>
+                <div class="chat" id="chatMessages">
+                    <div class="message"><strong>System:</strong> Welcome! Chat to gain XP!</div>
+                </div>
+                <div class="chat-input">
+                    <input type="text" id="messageInput" placeholder="Type message..." maxlength="200">
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let users = JSON.parse(localStorage.getItem('users')) || {};
+        let messages = JSON.parse(localStorage.getItem('messages')) || [];
+        let posts = JSON.parse(localStorage.getItem('posts')) || [];
+        let currentUser = null;
+        let isSignupMode = false;
+
+        function switchMode() {
+            isSignupMode = !isSignupMode;
+            document.getElementById('loginForm').style.display = isSignupMode ? 'none' : 'block';
+            document.getElementById('signupForm').style.display = isSignupMode ? 'block' : 'none';
+            document.getElementById('formTitle').textContent = isSignupMode ? 'SIGN UP' : 'LOGIN';
+            document.getElementById('switchText').textContent = isSignupMode ? 'Already have an account?' : "Don't have an account?";
+            document.getElementById('switchLink').textContent = isSignupMode ? 'Login' : 'Sign up';
+            clearMessage();
+        }
+
+        function login() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                showMessage('Please fill all fields', 'error');
+                return;
+            }
+            
+            if (users[username] && users[username].password === password) {
+                users[username].loginCount = (users[username].loginCount || 0) + 1;
+                users[username].isOnline = true;
+                currentUser = {
+                    username: username,
+                    name: users[username].name,
+                    exp: users[username].exp || 0
+                };
+                saveData();
+                showDashboard();
+            } else {
+                showMessage('Invalid username or password', 'error');
+            }
+        }
+
+        function signup() {
+            const name = document.getElementById('signupName').value.trim();
+            const email = document.getElementById('signupEmail').value.trim();
+            const username = document.getElementById('signupUsername').value.trim();
+            const password = document.getElementById('signupPassword').value;
+            
+            if (!name || !email || !username || !password) {
+                showMessage('Please fill all fields', 'error');
+                return;
+            }
+            
+            if (users[username]) {
+                showMessage('Username already exists', 'error');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showMessage('Password must be at least 6 characters', 'error');
+                return;
+            }
+            
+            users[username] = {
+                name: name,
+                email: email,
+                password: password,
+                exp: 0,
+                loginCount: 0,
+                messageCount: 0,
+                created: new Date().toISOString()
+            };
+            
+            saveData();
+            showMessage('Account created! You can now login.', 'success');
+            setTimeout(() => {
+                switchMode();
+                document.getElementById('username').value = username;
+            }, 1500);
+        }
+
+        function showDashboard() {
+            document.getElementById('loginBox').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            document.getElementById('userName').textContent = currentUser.name;
+            updateLevelDisplay();
+            loadMessages();
+            loadPosts();
+        }
+
+        function logout() {
+            if (currentUser) {
+                users[currentUser.username].isOnline = false;
+                saveData();
+            }
+            currentUser = null;
+            document.getElementById('loginBox').style.display = 'block';
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            clearMessage();
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message || !currentUser) return;
+            
+            messages.push({
+                id: Date.now(),
+                author: currentUser.name,
+                username: currentUser.username,
+                message: message,
+                timestamp: new Date().toISOString()
+            });
+            
+            users[currentUser.username].messageCount = (users[currentUser.username].messageCount || 0) + 1;
+            gainExp(5);
+            saveData();
+            loadMessages();
+            input.value = '';
+        }
+
+        function createPost() {
+            const content = document.getElementById('postContent').value.trim();
+            if (!content || !currentUser) return;
+            
+            posts.unshift({
+                id: Date.now(),
+                author: currentUser.name,
+                username: currentUser.username,
+                content: content,
+                timestamp: new Date().toISOString(),
+                likes: 0
+            });
+            
+            gainExp(10);
+            saveData();
+            loadPosts();
+            document.getElementById('postContent').value = '';
+        }
+
+        function likePost(postId) {
+            const post = posts.find(p => p.id === postId);
+            if (post) {
+                post.likes++;
+                gainExp(2);
+                saveData();
+                loadPosts();
+            }
+        }
+
+        function gainExp(amount) {
+            if (!currentUser) return;
+            users[currentUser.username].exp = (users[currentUser.username].exp || 0) + amount;
+            currentUser.exp = users[currentUser.username].exp;
+            updateLevelDisplay();
+            saveData();
+        }
+
+        function updateLevelDisplay() {
+            if (!currentUser) return;
+            const exp = currentUser.exp || 0;
+            const level = Math.floor(exp / 100) + 1;
+            const currentLevelExp = exp % 100;
+            document.getElementById('userLevel').textContent = level;
+            document.getElementById('expText').textContent = currentLevelExp + '/100 XP';
+            document.getElementById('levelFill').style.width = currentLevelExp + '%';
+        }
+
+        function loadMessages() {
+            const container = document.getElementById('chatMessages');
+            container.innerHTML = messages.slice(-20).map(msg => 
+                '<div class="message"><strong>' + msg.author + ':</strong> ' + msg.message + 
+                '<small style="float: right; color: #666;">' + new Date(msg.timestamp).toLocaleTimeString() + '</small></div>'
+            ).join('');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function loadPosts() {
+            const container = document.getElementById('postsContainer');
+            container.innerHTML = '<h3 style="margin-top: 20px;">Recent Posts</h3>' + 
+                posts.slice(0, 10).map(post => {
+                    const userExp = users[post.username]?.exp || 0;
+                    const level = Math.floor(userExp / 100) + 1;
+                    return '<div class="post"><strong>' + post.author + '</strong> <span style="background: #000; color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 12px;">Lvl ' + level + '</span>' +
+                        '<small style="float: right; color: #666;">' + new Date(post.timestamp).toLocaleString() + '</small>' +
+                        '<p style="margin: 10px 0;">' + post.content + '</p>' +
+                        '<button onclick="likePost(' + post.id + ')">👍 ' + post.likes + '</button></div>';
+                }).join('');
+        }
+
+        function saveData() {
+            localStorage.setItem('users', JSON.stringify(users));
+            localStorage.setItem('messages', JSON.stringify(messages));
+            localStorage.setItem('posts', JSON.stringify(posts));
+        }
+
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = text;
+            messageDiv.className = type;
+        }
+
+        function clearMessage() {
+            document.getElementById('message').textContent = '';
+            document.getElementById('message').className = '';
+        }
+
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        console.log('GameSocial loaded successfully!');
+    </script>
+</body>
+</html>

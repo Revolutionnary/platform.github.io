@@ -49,7 +49,7 @@ That's it! No dependencies required.
 
 ## License 📄
 
-MIT License - Feel free to use this project!
+License - Ask me before using this project!
 
 ## Author ✍️
 
